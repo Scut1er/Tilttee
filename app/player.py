@@ -5,8 +5,8 @@ import validators
 from asyncio import sleep
 import discord
 
-from bot.config import FFMPEG_OPT, INACTIVITY_TIMEOUT
-from searcher import search_track, get_first_tracks_from_playlist, search_playlist
+from app.config import FFMPEG_OPT, INACTIVITY_TIMEOUT
+from app.searcher import search_track, get_first_track_from_playlist, search_playlist
 
 
 def update_last_activity(method=None):
@@ -71,18 +71,20 @@ class Player:
         if self.playlist_loading:
             return await self.ctx.send(
                 "```⏳ Команда недоступна во время загрузки плейлиста. Пожалуйста, подождите...```")
-        if validators.url(query) and ('?list=' in query or '/playlists/' in query):
+        if validators.url(query) and any(keyword in query for keyword in ('&list=', '/playlists/', '/album/')):
             return await self.add_playlist_to_queue(query)
+
         return await self.add_track_to_queue(query)
 
     async def check_inactivity(self):
         while True:
-            await sleep(60)  # Проверяем раз в минуту
-            if self.voice_client and self.voice_client.is_connected() and not self.voice_client.is_playing():
-                if datetime.now(timezone.utc) - self.last_activity > INACTIVITY_TIMEOUT:
-                    await self.voice_client.disconnect()
-                    await self.ctx.send("```💤 Бот отключен из-за неактивности.```")
-                    break
+            inactivity_duration = datetime.now(timezone.utc) - self.last_activity
+            # Проверка неактивности только если прошло больше, чем заданное время
+            if inactivity_duration > INACTIVITY_TIMEOUT and self.voice_client and self.voice_client.is_connected() and not self.voice_client.is_playing():
+                await self.voice_client.disconnect()
+                await self.ctx.send("```💤 Бот отключен из-за неактивности.```")
+                break
+            await sleep(max(60, INACTIVITY_TIMEOUT.total_seconds() - inactivity_duration.total_seconds()))
 
     async def connect(self):
         """
@@ -92,16 +94,22 @@ class Player:
         - True, если подключение было успешным, False в противном случае.
         """
         try:
+            # Пытаемся получить канал, в котором находится автор
             voice_channel = self.ctx.author.voice.channel
         except AttributeError:
+            # Если пользователь не в голосовом канале, отправляем сообщение об ошибке
             await self.ctx.send("```❌ Вы не находитесь в голосовом канале!```")
             return False
+
+        # Если голосовой клиент уже подключен, проверяем, нужно ли перемещать
         if self.voice_client and self.voice_client.is_connected():
             if self.voice_client.channel != voice_channel:
                 await self.voice_client.move_to(voice_channel)
+                return True
+        else:
+            # Если клиент не подключен, подключаем его
+            self.voice_client = await voice_channel.connect(self_deaf=True)
             return True
-        self.voice_client = await voice_channel.connect(self_deaf=True)
-        return True
 
     @update_last_activity
     async def disconnect(self):
@@ -119,14 +127,15 @@ class Player:
         Parameters:
         - query: Запрос для поиска или URL трека.
         """
-        if await self.connect():
-            track = await search_track(self, query)
-            if not track:
-                return await self.ctx.send("```🔍 По вашему запросу ничего не найдено.```")
-            self.queue.append(track)
-            await self.ctx.send(f'```📥 Добавлено {track.title}```')
-            if not self.voice_client.is_playing():
-                await self.play_track()
+        if not await self.connect():
+            return
+        track = await search_track(self, query)
+        if not track:
+            return await self.ctx.send("```🔍 По вашему запросу ничего не найдено.```")
+        self.queue.append(track)
+        await self.ctx.send(f'```📥 Добавлено {track.title}```')
+        if not self.voice_client.is_playing():
+            await self.play_track()
 
     @update_last_activity
     async def add_playlist_to_queue(self, query):
@@ -136,31 +145,59 @@ class Player:
         Parameters:
         - query: URL плейлиста.
         """
-        if await self.connect():
-            upload_text = await self.ctx.send("```♻️ Добавление плейлиста в очередь. Пожалуйста, подождите...```")
-            self.playlist_loading = True
-            first_tracks = await get_first_tracks_from_playlist(self, query)
-            if first_tracks:
-                self.queue.extend(first_tracks)
-                await self.play_track()
-            playlist = await search_playlist(self, query)
-            self.playlist_loading = False
-            await upload_text.delete()
-            if not playlist:
-                return await self.ctx.send("```❌ Неверный или пустой плейлист.```")
-            self.queue.extend(playlist[len(first_tracks):])
-            self.playlists.append(query)
-            await self.ctx.send(f'```📥 Добавлено {len(playlist) - 1} треков из плейлиста в очередь.```')
+        if not await self.connect():
+            return
 
-            if not self.voice_client.is_playing():
-                await self.play_track()
+        # Уведомление пользователя о начале загрузки
+        uploading_text = await self.ctx.send("```♻️ Добавление плейлиста в очередь. Пожалуйста, подождите...```")
+        self.playlist_loading = True
+
+        # Попытка получить первый трек, чтобы сразу начать воспроизведение
+        first_track = await get_first_track_from_playlist(self, query)
+        if first_track:
+            # Если удалось — добавляем его в очередь и запускаем проигрывание
+            self.queue.append(first_track)
+            await self.play_track()
+
+        # Загружаем весь плейлист
+        playlist = await search_playlist(self, query)
+        self.playlist_loading = False
+        await uploading_text.delete()
+
+        if not playlist:
+            return await self.ctx.send("```❌ Неверный или пустой плейлист.```")
+
+        # Добавляем ссылку на плейлист в список текущих, если её ещё нет
+        if query not in self.playlists:
+            self.playlists.append(query)
+
+        # Добавляем оставшиеся треки, если первый уже был добавлен отдельно
+        if first_track:
+            self.queue.extend(playlist[1:])
+        else:
+            # Если первый трек не удалось воспроизвести — добавляем все треки сразу
+            self.queue.extend(playlist)
+
+        track_count = len(playlist) - 1 if first_track else len(playlist)
+        await self.ctx.send(f"```📥 Добавлено {track_count} треков из плейлиста в очередь.```")
+
+        if not self.voice_client.is_playing():
+            await self.play_track()
 
     @update_last_activity
     async def play_track(self):
         """Воспроизводит следующий трек в очереди."""
         if not self.voice_client or not self.voice_client.is_connected() or self.voice_client.is_playing():
             return
+
         self.current_track = self.queue.pop(0)
+        playlist_source = self.current_track.playlist
+
+        # Удаляем плейлист, если треков из него больше не осталось
+        if playlist_source and all(track.playlist != playlist_source for track in self.queue):
+            if playlist_source in self.playlists:
+                self.playlists.remove(playlist_source)
+
         self.voice_client.play(
             discord.FFmpegPCMAudio(self.current_track.source, **FFMPEG_OPT),
             after=lambda e: self.bot.loop.create_task(self.play_track()) if self.queue else None)
@@ -191,10 +228,10 @@ class Player:
             return await self.ctx.send(
                 "```⏳ Команда недоступна во время загрузки плейлиста. Пожалуйста, подождите...```")
         if not self.queue:
-            await self.ctx.send("```📭 Очередь пуста.```")
+            return await self.ctx.send("```📭 Очередь пуста.```")
         else:
             self.queue.clear()
-            await self.ctx.send("```✨ Очередь очищена.```")
+            return await self.ctx.send("```✨ Очередь очищена.```")
 
     @update_last_activity
     async def skip(self):

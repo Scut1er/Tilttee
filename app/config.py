@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-TRACKS_FOR_WAITING = 1
 MAX_TRACKS_IN_PLAYLIST = 100
 USE_LOGGING = True
 INACTIVITY_TIMEOUT = timedelta(minutes=15)

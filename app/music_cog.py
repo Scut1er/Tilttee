@@ -1,6 +1,6 @@
 from discord.ext import commands
 
-from player import Player
+from app.player import Player
 from discord.ext.commands import CommandOnCooldown
 
 

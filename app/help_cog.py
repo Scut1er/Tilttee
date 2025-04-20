@@ -1,6 +1,6 @@
 from discord.ext import commands
 
-from bot.config import INACTIVITY_TIMEOUT, MAX_TRACKS_IN_PLAYLIST
+from app.config import INACTIVITY_TIMEOUT, MAX_TRACKS_IN_PLAYLIST
 
 
 class HelpCog(commands.Cog):

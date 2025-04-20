@@ -1,7 +1,7 @@
 import validators
 from yt_dlp import YoutubeDL
 from youtubesearchpython import VideosSearch
-from bot.config import YDL_OPT, TRACKS_FOR_WAITING
+from app.config import YDL_OPT
 
 
 class Track:
@@ -69,22 +69,30 @@ async def search_playlist(player, query):
         return tracks
 
 
-async def get_first_tracks_from_playlist(player, query):
+async def get_first_track_from_playlist(player, query) -> Track | None:
     """
-    Получает первые [num] треков из плейлиста.
+    Получает первый трек из плейлиста.
 
     Parameters:
     - query: URL или строка запроса плейлиста.
 
     Returns:
-    - Список объектов Track или None, если не найдено ни одного трека.
+    - Track или None, если не найдено ни одного трека.
     """
     ytdl_params = YDL_OPT.copy()
-    ytdl_params['playlistend'] = TRACKS_FOR_WAITING
+    ytdl_params['playlistend'] = 1  # Скачиваем только первый трек
 
     with YoutubeDL(ytdl_params) as ytdl:
-        info = await player.bot.loop.run_in_executor(None, lambda: ytdl.extract_info(query, download=False))
-        if 'entries' in info and info['entries']:
-            tracks = info['entries'][:TRACKS_FOR_WAITING]
-            return [Track(source=track['url'], title=track['title'], playlist=query) for track in tracks]
-        return None
+        try:
+            info = await player.bot.loop.run_in_executor(
+                None, lambda: ytdl.extract_info(query, download=False)
+            )
+
+            entries = info.get('entries')
+            if entries and len(entries) > 0:
+                first = entries[0]
+                return Track(source=first['url'], title=first['title'], playlist=query)
+            return None
+        except Exception as e:
+            print(f"Ошибка при получении первого трека: {e}")
+            return None
