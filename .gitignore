@@ -3,3 +3,4 @@
 /venv
 __pycache__/
 cookies.txt
+discord_bot.log

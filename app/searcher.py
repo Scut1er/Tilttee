@@ -1,6 +1,5 @@
 import validators
 from yt_dlp import YoutubeDL
-from youtubesearchpython import VideosSearch
 from config import YDL_OPT
 
 
@@ -28,22 +27,26 @@ async def search_track(player, query):
     Выполняет поиск трека на YouTube.
 
     Parameters:
-    - req: Запрос для поиска или URL трека.
+    - player: объект плеера
+    - query: строка запроса или ссылка на видео
 
     Returns:
-    - Объект Track с URL источника и названием, или None, если результаты не найдены.
+    - Объект Track с URL источника и названием, или None, если результат не найден.
     """
     with YoutubeDL(YDL_OPT) as ytdl:
+        # Если это не ссылка, использовать ytsearch
         if not validators.url(query):
-            search = VideosSearch(query, limit=1)
-            results = search.result().get("result")
-            if results:
-                query = results[0]['link']
-            else:
-                return None
+            query = f"ytsearch1:{query}"
+
         info = await player.bot.loop.run_in_executor(None, lambda: ytdl.extract_info(query, download=False))
+
+        # ytsearch возвращает 'entries', URL — обычный возврат
+        if "entries" in info and info["entries"]:
+            info = info["entries"][0]
+
         if not info:
             return None
+
         return Track(source=info.get('url'), title=info.get('title'))
 
 

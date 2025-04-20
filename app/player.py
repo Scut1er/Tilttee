@@ -106,6 +106,7 @@ class Player:
             if self.voice_client.channel != voice_channel:
                 await self.voice_client.move_to(voice_channel)
                 return True
+            return True
         else:
             # Если клиент не подключен, подключаем его
             self.voice_client = await voice_channel.connect(self_deaf=True)
