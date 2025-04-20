@@ -1,9 +1,9 @@
 import asyncio
 import os
 from dotenv import load_dotenv
-from app.bot import bot
-from app.config import USE_LOGGING
-from app.logger import setup_logging
+from bot import bot
+from config import USE_LOGGING
+from logger import setup_logging
 
 load_dotenv()
 

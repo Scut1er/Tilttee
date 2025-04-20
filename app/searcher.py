@@ -1,7 +1,7 @@
 import validators
 from yt_dlp import YoutubeDL
 from youtubesearchpython import VideosSearch
-from app.config import YDL_OPT
+from config import YDL_OPT
 
 
 class Track:

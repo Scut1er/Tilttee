@@ -5,8 +5,8 @@ import validators
 from asyncio import sleep
 import discord
 
-from app.config import FFMPEG_OPT, INACTIVITY_TIMEOUT
-from app.searcher import search_track, get_first_track_from_playlist, search_playlist
+from config import FFMPEG_OPT, INACTIVITY_TIMEOUT
+from searcher import search_track, get_first_track_from_playlist, search_playlist
 
 
 def update_last_activity(method=None):

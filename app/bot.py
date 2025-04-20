@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
 
-from app.help_cog import HelpCog
-from app.music_cog import MusicCog
+from help_cog import HelpCog
+from music_cog import MusicCog
 
 
 class MusicBot(commands.Bot):

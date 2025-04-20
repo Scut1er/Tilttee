@@ -1,7 +1,6 @@
 from discord.ext import commands
-
-from app.player import Player
 from discord.ext.commands import CommandOnCooldown
+from player import Player
 
 
 class MusicCog(commands.Cog):
