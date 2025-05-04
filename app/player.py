@@ -71,9 +71,13 @@ class Player:
         if self.playlist_loading:
             return await self.ctx.send(
                 "```⏳ Команда недоступна во время загрузки плейлиста. Пожалуйста, подождите...```")
-        if validators.url(query) and any(keyword in query for keyword in ('&list=', '/playlists/', '/album/')):
-            return await self.add_playlist_to_queue(query)
-
+        if validators.url(query):
+            # Если это ссылка на трек внутри альбома — как трек
+            if '/album/' in query and '/track/' in query:
+                return await self.add_track_to_queue(query)
+            # Если это плейлист (альбом или youtube-плейлист)
+            if any(keyword in query for keyword in ('&list=', '/playlists/', '/album/')):
+                return await self.add_playlist_to_queue(query)
         return await self.add_track_to_queue(query)
 
     async def check_inactivity(self):
@@ -159,6 +163,7 @@ class Player:
             # Если удалось — добавляем его в очередь и запускаем проигрывание
             self.queue.append(first_track)
             await self.play_track()
+
 
         # Загружаем весь плейлист
         playlist = await search_playlist(self, query)
