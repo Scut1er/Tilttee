@@ -11,4 +11,12 @@ YDL_OPT = {'format': "bestaudio/best",
            'noplaylist': False,
            'cookiefile': 'cookies.txt',
            'ignoreerrors': True,
-           'playlistend': MAX_TRACKS_IN_PLAYLIST}
+           'playlistend': MAX_TRACKS_IN_PLAYLIST,
+           'lazy_extractors': True,
+           'no_check_certificate': True,
+           'extractor_args': {
+               'youtube': {
+                   'player_client': ['web'],
+                   'skip': ['dash', 'hls']
+               }
+           }}
